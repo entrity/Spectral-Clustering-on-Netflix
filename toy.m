@@ -1,17 +1,16 @@
-function tmp ()
-	disp('fsds')
+function [A, Lu, Le, Ln, Lr] = toy ()
 	A = [
-		1 1 1 0 0 0 0 0
-		1 1 1 0 0 0 0 0
-		1 1 1 0 0 0 0 0
-		0 0 0 0 0 1 1 1
-		0 0 0 0 0 1 1 1
-		0 0 0 0 0 1 1 1
-		0 0 0 1 1 0 0 0
-		0 0 0 1 1 0 0 0
+		0 1 1 0 0 0 0 0
+		1 0 1 0 0 0 0 0
+		1 1 0 0 0 0 0 0
+		0 0 0 0 1 0 0 0
+		0 0 0 1 0 0 0 0
+		0 0 0 0 0 0 1 1
+		0 0 0 0 0 1 0 1
+		0 0 0 0 0 1 1 0
 	];
-	d = sum(A);
-	D = diag(d)
+	d = sum(A');
+	D = diag(d);
 
 	% Unnormalized L
 	Lu = D - A;
@@ -22,7 +21,8 @@ function tmp ()
 	[vec_e,val_e]=eig(Le);
 	[Y,I]=sort(diag(val_e),'ascend');
 	fprintf(1,' >>> like CuttingElephants <<<\n');
-	disp(vec_e(:,I))
+	disp(val_e(I)');
+	disp(vec_e(:,I));
 
 	% Normalized L
 	normD = diag(d.^(-1/2));
@@ -30,7 +30,8 @@ function tmp ()
 	[vec_n,val_n]=eig(Ln);
 	[Y,I]=sort(diag(val_n),'ascend');
 	fprintf(1,' >>> Normalized <<<\n');
-	disp(vec_n(:,I))
+	disp(val_n(I)');
+	disp(vec_n(:,I));
 
 	% Random walk L
 	randD = diag(d.^(-1));
@@ -38,8 +39,6 @@ function tmp ()
 	[vec_r,val_r]=eig(Ln);
 	[Y,I]=sort(diag(val_r),'ascend');
 	fprintf(1,' >>> Random walk <<<\n');
-	disp(vec_r(:,I))
-
-	% Why do my eigenvectors not indicate cuts?
-	% Why is none of them an equilibrium distribution?
+	disp(val_r(I)');
+	disp(vec_r(:,I));
 end
