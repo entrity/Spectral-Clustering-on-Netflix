@@ -1,4 +1,4 @@
-import io, csv
+import io, csv, pickle
 from my_util import *
 
 TITL_COL = 2

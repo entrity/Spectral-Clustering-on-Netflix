@@ -25,13 +25,37 @@ def sparsify(graph, k):
 	assert np.allclose(graph, graph.T, tol=0.01)
 	return graph
 
+def mysparsify(graph, k):
+	tic = datetime.datetime.now()
+	assert 0 == len(np.diag(graph).nonzero()[0])
+	print('assert 1 done')
+	for i, vec in enumerate(graph):
+		idxs = np.argsort(vec) # ascending order
+		nixs = idxs[:-k]
+		graph[i,nixs] = 0
+	print('applied knn')
+	toc = datetime.datetime.now()
+	print('tictoc', toc - tic)
+
 if __name__ == '__main__':
 	fin = sys.argv[1]
+	k   = int(sys.argv[2])
+	print('k = %d' % k)
+	import matplotlib.pyplot as plt
+	import scipy.linalg
 	name, ext = os.path.splitext(fin)
-	fout = name + '-sparse' + ext
+	fout = '%s-sparse-%d-%s' % (name, k, ext)
 	graph = np.load(fin)
-	# print(len(graph.nonzero()[0]))
-	import IPython; IPython.embed(); # to do: delete
-	graph = sparsify(graph, int(sys.argv[2]))
-	# print(len(graph.nonzero()[0]))
+	print(np.count_nonzero(graph))
+	mysparsify(graph, k)
+	print(np.count_nonzero(graph))
+	fig = plt.figure()
+	vals, vecs = scipy.linalg.eigh(graph, eigvals=(0, 1000))
+	x = np.arange(1001)
+	plt.plot(x, vals)
+	print('saving...')
+	fig.savefig('1000-eigvals-%d.png' % k)
 	np.save(fout, graph)
+	np.save('vals-%s-%d' % (name, k), vals)
+	np.save('vecs-%s-%d' % (name, k), vecs)
+	print('saved')
