@@ -26,16 +26,28 @@ def sparsify(graph, k):
 	return graph
 
 def mysparsify(graph, k):
-	tic = datetime.datetime.now()
-	assert 0 == len(np.diag(graph).nonzero()[0])
+	assert 0 == len(np.diag(graph).nonzero()[0]) # ensure there are no self-connections
 	print('assert 1 done')
+	tic = datetime.datetime.now()
 	for i, vec in enumerate(graph):
 		idxs = np.argsort(vec) # ascending order
 		nixs = idxs[:-k]
 		graph[i,nixs] = 0
 	print('applied knn')
-	toc = datetime.datetime.now()
-	print('tictoc', toc - tic)
+	toc = datetime.datetime.now(); print('tictoc mysparsify', toc - tic)
+
+# Pass in sparse graph
+def norm_laplacian(graph):
+	tic = datetime.datetime.now()
+	A = (graph + graph.T) / 2 # Make it symmetric
+	d = np.sum(A, axis=0)
+	D = np.diag(d)
+	Lu = D - A
+	normD = np.diag(d**(-1/2));
+	Ln = np.matmul(np.matmul(normD,Lu),normD)
+	print('got Laplacian')
+	toc = datetime.datetime.now(); print('tictoc norm_laplacian', toc - tic)
+	return Ln
 
 if __name__ == '__main__':
 	fin = sys.argv[1]
@@ -44,18 +56,24 @@ if __name__ == '__main__':
 	import matplotlib.pyplot as plt
 	import scipy.linalg
 	name, ext = os.path.splitext(fin)
-	fout = '%s-sparse-%d-%s' % (name, k, ext)
+	# Load graph
 	graph = np.load(fin)
-	print(np.count_nonzero(graph))
+	# Sparsify graph
+	print('nonzeros', np.count_nonzero(graph))
 	mysparsify(graph, k)
-	print(np.count_nonzero(graph))
-	fig = plt.figure()
-	vals, vecs = scipy.linalg.eigh(graph, eigvals=(0, 1000))
-	x = np.arange(1001)
-	plt.plot(x, vals)
-	print('saving...')
-	fig.savefig('1000-eigvals-%d.png' % k)
+	print('nonzeros', np.count_nonzero(graph))
+	# Get Laplacian
+	Ln = norm_laplacian(graph)
+	fout = 'Ln-%s-%d-%s' % (name, k, ext)
 	np.save(fout, graph)
+	print('saved Laplacian')
+	# Get eigenvectors
+	vals, vecs = scipy.linalg.eigh(Ln, eigvals=(0, 1000))
 	np.save('vals-%s-%d' % (name, k), vals)
 	np.save('vecs-%s-%d' % (name, k), vecs)
-	print('saved')
+	print('saved eigenvectors, eigenvalues')
+	# Plot eigenvalues
+	fig = plt.figure()
+	x = np.arange(1001)
+	plt.plot(x, vals)
+	fig.savefig('1000-eigvals-%s-%d.png' % (name, k))
