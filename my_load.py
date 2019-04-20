@@ -22,12 +22,25 @@ def load_movies(fpath='movie_titles.txt'):
   assert N == N_MOVIES, N
   return data
 
-def load_csv(fpath='train.csv', has_header=True):
+def load_csv(fpath='train.csv', has_header=True, savepath=None):
   with open(fpath) as fin:
     reader = csv.reader(fin, delimiter=',')
     if has_header:
       header = next(reader)
     data = [( int(r[MVID_COL],10), int(r[USER_COL]), int(r[RATE_COL]), parsedate(r[DATE_COL]) ) for r in reader if r[0].isnumeric()]
+  if savepath is not None:
+    with open(savepath, 'wb') as fout: pickle.dump(data, fout)
+  return data
+
+# Load the test csv, which has '?' values instead of numbers
+def load_test_csv(fpath='test.csv', has_header=False, savepath=None):
+  with open(fpath) as fin:
+    reader = csv.reader(fin, delimiter=',')
+    if has_header:
+      header = next(reader)
+    data = [( int(r[MVID_COL],10), int(r[USER_COL],10), r[RATE_COL], parsedate(r[DATE_COL]) ) for r in reader if r[0].isnumeric()]
+  if savepath is not None:
+    with open(savepath, 'wb') as fout: pickle.dump(data, fout)
   return data
 
 def construct_user_id_map(savepath='user-id-map.pkl', trainpath='train.csv', testpath='test.csv'):
@@ -48,3 +61,6 @@ def construct_user_id_map(savepath='user-id-map.pkl', trainpath='train.csv', tes
     pickle.dump(uidmap, fout)
   return uidmap
 
+if __name__ == '__main__':
+  load_csv('train.csv', True, 'trainset.pkl')
+  load_test_csv('test.csv', False, 'testset.pkl')

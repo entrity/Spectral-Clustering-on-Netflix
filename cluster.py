@@ -3,8 +3,10 @@
 import argparse
 import numpy as np
 import sklearn.cluster
-import datetime
+import os, datetime
+import pickle
 from my_util import *
+from my_load import *
 
 class KMeansData(object):
 	def __init__(self, labels_):
@@ -17,11 +19,13 @@ class KMeansData(object):
 
 	# Look up cluster id for given data pt. Then return list of members of that cluster.
 	def get_neighbour_idxs(self, pt_idx):
+		if pt_idx is None: return []
 		cluster_id = self.labels_[pt_idx]
 		return self.memberships[cluster_id]
 
 ######################################################################
 
+def _labels_fpath(k, dim, vecsfile): return 'labels-%d-%d-%s' % (k, dim, vecsfile)
 
 # Select dimensions. Run K-means. Return KMeansData
 def cluster(vecsfile, valsfile, dim, k):
@@ -38,51 +42,54 @@ def cluster(vecsfile, valsfile, dim, k):
 	# Save centroids
 	np.save('centroids-%d-%d-%s' % (k, dim, vecsfile), kmeans.cluster_centers_)
 	# Save labels
-	np.save('labels-%d-%d-%s' % (k, dim, vecsfile), kmeans.labels_)
+	np.save(_labels_fpath(k, dim, vecsfile), kmeans.labels_)
 	# Return
 	return KMeansData(kmeans.labels_)
 
-def test_pt(true_lbl, mean_rating, mov_id, usr_id, uidmap, mov_km, usr_km):
+# Ratings is a user-by-movie matrix
+def test_pt(true_lbl, mean_rating, ratings, mov_id, usr_id, uidmap, mov_km, usr_km):
+	nzs = lambda ndarray : ndarray[ndarray.nonzero()] # Get nonzero values
 	mov_idx = get_mov_idx(mov_id)
 	usr_idx = get_usr_idx(uidmap, usr_id)
-	# Does user have ratings for any movies in the movie cluster?
-	neighbour_mov_idxs = mov_km.get_neighbour_idxs(mov_idx)
-	if 0 == len(neighbour_mov_idxs):
-		usr_mean = mean_rating
-	else:
-		ratings_from_usr = np.nonzero(ratings[usr_idx, neighbour_mov_idxs])[0] # zeros are not ratings; they are unknown values
-		usr_mean = ratings_from_usr.mean()
-	# Does movie have ratings from any users in the user cluster?
+	# Nested function to get...
+	# `usr` and `mov` can be scalars or lists of indices
+	def selection_mean(usr, mov):
+		if (not usr) and (not mov): # One or both was not in training set and so has no cluster
+			return mean_rating
+		elif not usr: # Either user was not in training set or just has no ratings for the movies cluster
+			selection = ratings[:, mov] # Select all ratings for movie (by all users)
+		elif not mov: # Either movie was not in training set or just has no ratings from the users cluster
+			selection = ratings[usr, :] # Select all ratings by user (for all movies)
+		else:
+			selection = ratings[usr, mov] # Either (1) all ratings by one user for a cluster of movies or (2) all ratings for one movie from a cluster of users
+		return nzs(selection).mean()
+	# Get indices of neighbours
 	neighbour_usr_idxs = usr_km.get_neighbour_idxs(usr_idx)
-	if 0 == len(neighbour_usr_idxs):
-		mov_mean = mean_rating
-	else:
-		ratings_for_mov = np.nonzero(ratings[neighbour_user_idxs, mov_idx])[0] # zeros are not ratings; they are unknown values
-		mov_mean = ratings_for_mov.mean()
+	neighbour_mov_idxs = mov_km.get_neighbour_idxs(mov_idx)
+	usr_mean = selection_mean( neighbour_usr_idxs, mov_idx )
+	mov_mean = selection_mean( usr_idx, neighbour_mov_idxs )
 	# Check accuracy on user_mean, movie_mean, and the average of the two
 	usr_hyp  = math.round(usr_mean)
 	mov_hyp  = math.round(mov_mean)
 	mean_hyp = math.round((mov_mean + usr_mean) / 2.)
 	# Return
-	if true_lbl is None:
+	if true_lbl is None: # Return inference values
 		return usr_hyp, mov_hyp, mean_hyp
-	else:
+	else:                # Return accuracy
 		return int(usr_hyp == true_lbl), int(mov_hyp == true_lbl), int(mean_hyp == true_lbl)
 
-def test(title, dataset, mov_km, usr_km):
+def validate(title, dataset, mov_km, usr_km):
 	uidmap = construct_user_id_map()
-	ratings = [row[2] for row in dataset]
-	mean_rating = np.mean(ratings)
+	all_ratings = [row[2] for row in dataset]
+	mean_rating = np.mean(all_ratings)
+	ratings_matrix = user_by_movie_matrix(dataset, uidmap)
 	acc = np.zeros((len(dataset), 3), np.short)
 	for i, row in enumerate(dataset):
-		mov_id, usr_id, rating, date = row
-		usr, mov, mean = test_pt(true_lbl, mean_rating, mov_id, usr_id, uidmap, mov_km, usr_km)
+		mov_id, usr_id, true_lbl, date = row
+		usr, mov, mean = test_pt(true_lbl, mean_rating, ratings_matrix, mov_id, usr_id, uidmap, mov_km, usr_km)
 		acc[i,:] = usr, mov, mean
 	acc_usr, acc_mov, acc_mean = acc.sum(axis=0)
 	print('%s : usr %7d : mov %7d : mean %7d' % (title, acc_usr, acc_mov, acc_mean))
-
-def infer(dataset, mov_km, usr_km):
-
 
 if __name__ == '__main__':
 	# Parse args
@@ -98,22 +105,20 @@ if __name__ == '__main__':
 	args = parser.parse_args()
 
 	# Cluster
-	usr_km = cluster(args.usr_eigenvectors_file, args.usr_eigenvalues_file, args.usr_dim, args.k_usrs)
-	mov_km = cluster(args.mov_eigenvectors_file, args.mov_eigenvalues_file, args.mov_dim, args.k_movs)
+	if os.path.exists(_labels_fpath(args.k_usrs, args.usr_dim, args.usr_eigenvectors_file)):
+		usr_km = KMeansData(np.load(_labels_fpath(args.k_usrs, args.usr_dim, args.usr_eigenvectors_file)))
+	else:
+		usr_km = cluster(args.usr_eigenvectors_file, args.usr_eigenvalues_file, args.usr_dim, args.k_usrs)
+	if os.path.exists(_labels_fpath(args.k_movs, args.mov_dim, args.mov_eigenvectors_file)):
+		mov_km = KMeansData(np.load(_labels_fpath(args.k_movs, args.mov_dim, args.mov_eigenvectors_file)))
+	else:
+		mov_km = cluster(args.mov_eigenvectors_file, args.mov_eigenvalues_file, args.mov_dim, args.k_movs)
 
 	# Load trainset for inference
 	tic = datetime.datetime.now()
 	with open('trainset.pkl', 'rb') as fin:
 		trainset = pickle.load(fin)
 	toc = datetime.datetime.now(); print('tictoc load trainset', toc-tic)
-	# Load testset for inference
-	tic = datetime.datetime.now()
-	with open('testset.pkl', 'rb') as fin:
-		testset = pickle.load(fin)
-	toc = datetime.datetime.now(); print('tictoc load testset', toc-tic)
 
 	# Test on training data
-	test('TEST k-usr %6d k-mov %6d d-usr %4d d-mov %4d', trainset, mov_km, usr_km)
-
-	# Infer on testing data
-	infer(testset, mov_km, usr_km)
+	validate('TEST k-usr %6d k-mov %6d d-usr %4d d-mov %4d', trainset, mov_km, usr_km)

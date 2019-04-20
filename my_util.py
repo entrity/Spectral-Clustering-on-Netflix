@@ -6,8 +6,8 @@ import sklearn.neighbors
 def parsedate(datestr): return datetime.datetime.strptime(datestr, '%Y-%m-%d')
 def calc_date_distance( a, b ): return abs((a - b).days)
 def calc_rate_distance( a, b ): return abs(int(a) - int(b))
-def get_usr_idx(uidmap, uid): return uidmap[uid]
-def get_mov_idx(mid): return mid - 1
+def get_usr_idx(uidmap, uid): return uidmap.get(uid, None)
+def get_mov_idx(mid): return None if mid is None else mid - 1
 
 def split_dataset(csvdata, percentage_to_hold_out):
   n = len(csvdata)
