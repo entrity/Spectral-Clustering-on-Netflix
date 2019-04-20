@@ -21,7 +21,8 @@ class KMeansData(object):
 	def get_neighbour_idxs(self, pt_idx):
 		if pt_idx is None: return []
 		cluster_id = self.labels_[pt_idx]
-		return self.memberships[cluster_id]
+		members = self.memberships[cluster_id]
+		return [ m for m in members if m != pt_idx ]
 
 ######################################################################
 
@@ -62,7 +63,8 @@ def test_pt(true_lbl, mean_rating, ratings, mov_id, usr_id, uidmap, mov_km, usr_
 			selection = ratings[usr, :] # Select all ratings by user (for all movies)
 		else:
 			selection = ratings[usr, mov] # Either (1) all ratings by one user for a cluster of movies or (2) all ratings for one movie from a cluster of users
-		return nzs(selection).mean()
+		nonzero_values = nzs(selection)
+		return selection.mean() if len(selection) else mean_rating
 	# Get indices of neighbours
 	neighbour_usr_idxs = usr_km.get_neighbour_idxs(usr_idx)
 	neighbour_mov_idxs = mov_km.get_neighbour_idxs(mov_idx)
@@ -98,7 +100,7 @@ def validate(title, dataset, mov_km, usr_km):
 	n_correct = accs.sum(axis=0)
 	accuracy  = n_correct / n
 	mses      = errs.mean(axis=0)
-	favs      = 1 - (accuracy * mses)
+	favs      = (accuracy * (1 - mses))
 	print(title)
 	print('  COR : usr %7d : mov %7d : mean %7d : meanmean %7d' % tuple(n_correct))
 	print('  ACC : usr %.5f : mov %.5f : mean %.5f : meanmean %.5f' % tuple(accuracy))
