@@ -68,7 +68,7 @@ def test_pt(true_lbl, mean_rating, ratings, mov_id, usr_id, uidmap, mov_km, usr_
 		else:
 			selection = ratings[usr, mov] # Either (1) all ratings by one user for a cluster of movies or (2) all ratings for one movie from a cluster of users
 		nonzero_values = nzs(selection)
-		return nonzero_values.mean() if len(selection) else mean_rating
+		return nonzero_values.mean() if len(nonzero_values) else mean_rating
 	# Get indices of neighbours
 	neighbour_usr_idxs = usr_km.get_neighbour_idxs(usr_idx)
 	neighbour_mov_idxs = mov_km.get_neighbour_idxs(mov_idx)
