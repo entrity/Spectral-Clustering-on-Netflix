@@ -72,28 +72,38 @@ def test_pt(true_lbl, mean_rating, ratings, mov_id, usr_id, uidmap, mov_km, usr_
 	usr_hyp  = np.round(usr_mean)
 	mov_hyp  = np.round(mov_mean)
 	mean_hyp = np.round((mov_mean + usr_mean) / 2.)
-	meanmean_hyp = np.round((mov_mean + usr_mean + mean_rating) / 2.)
+	meanmean_hyp = np.round((mov_mean + usr_mean + mean_rating) / 3.)
 	# Return
+	hyps = (usr_hyp, mov_hyp, mean_hyp, meanmean_hyp)
 	if true_lbl is None: # Return inference values
-		return usr_hyp, mov_hyp, mean_hyp, meanmean_hyp
+		return hyps
 	else:                # Return accuracy
-		return int(usr_hyp == true_lbl), int(mov_hyp == true_lbl), int(mean_hyp == true_lbl), int(meanmean_hyp == true_lbl)
+		return (	hyps,
+					[ int(h == true_lbl) for h in hyps ],
+					[ (h - true_lbl)**2 for h in hyps ]
+			)
 
 def validate(title, dataset, mov_km, usr_km):
 	uidmap = construct_user_id_map()
 	all_ratings = [row[2] for row in dataset]
 	mean_rating = np.mean(all_ratings)
 	ratings_matrix, _ = user_by_movie_matrix(dataset, uidmap)
-	acc = np.zeros((len(dataset), 4), np.short)
+	hyps = np.zeros((len(dataset), 4), np.short)
+	accs = np.zeros((len(dataset), 4), np.short)
+	errs = np.zeros((len(dataset), 4), np.float)
 	for i, row in enumerate(dataset):
 		mov_id, usr_id, true_lbl, date = row
-		usr, mov, mean, meanmean = test_pt(true_lbl, mean_rating, ratings_matrix, mov_id, usr_id, uidmap, mov_km, usr_km)
-		acc[i,:] = usr, mov, mean, meanmean
-	acc_usr, acc_mov, acc_mean, acc_meanmean = acc.sum(axis=0)
-	print(title)
-	print('\t : usr %7d : mov %7d : mean %7d : meanmean %7d' % (acc_usr, acc_mov, acc_mean, acc_meanmean))
+		hyps[i,:], accs[i,:], errs[i,:] = test_pt(true_lbl, mean_rating, ratings_matrix, mov_id, usr_id, uidmap, mov_km, usr_km)
 	n = float(len(dataset))
-	print('\t : usr %.5f : mov %.5f : mean %.5f : meanmean %.5f' % (acc_usr/n, acc_mov/n, acc_mean/n, acc_meanmean/n))
+	n_correct = accs.sum(axis=0)
+	accuracy  = n_correct / n
+	mses      = errs.mean(axis=0)
+	favs      = 1 - (accuracy * mses)
+	print(title)
+	print('  COR : usr %7d : mov %7d : mean %7d : meanmean %7d' % tuple(n_correct))
+	print('  ACC : usr %.5f : mov %.5f : mean %.5f : meanmean %.5f' % tuple(accuracy))
+	print('  MSE : usr %.5f : mov %.5f : mean %.5f : meanmean %.5f' % tuple(mses))
+	print('  FAV : usr %.5f : mov %.5f : mean %.5f : meanmean %.5f' % tuple(favs))
 
 if __name__ == '__main__':
 	# Parse args
