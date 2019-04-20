@@ -30,7 +30,7 @@ def load_csv(fpath='train.csv', has_header=True):
     data = [( int(r[MVID_COL],10), int(r[USER_COL]), int(r[RATE_COL]), parsedate(r[DATE_COL]) ) for r in reader if r[0].isnumeric()]
   return data
 
-def construct_user_id_map(savepath, trainpath='train.csv', testpath='test.csv'):
+def construct_user_id_map(savepath='user-id-map.pkl', trainpath='train.csv', testpath='test.csv'):
   with open(trainpath) as fin:
     reader = csv.reader(fin, delimiter=',')
     train_ids = [row[USER_COL] for row in reader]

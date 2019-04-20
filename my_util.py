@@ -6,6 +6,8 @@ import sklearn.neighbors
 def parsedate(datestr): return datetime.datetime.strptime(datestr, '%Y-%m-%d')
 def calc_date_distance( a, b ): return abs((a - b).days)
 def calc_rate_distance( a, b ): return abs(int(a) - int(b))
+def get_usr_idx(uidmap, uid): return uidmap[uid]
+def get_mov_idx(mid): return mid - 1
 
 def split_dataset(csvdata, percentage_to_hold_out):
   n = len(csvdata)
@@ -17,6 +19,20 @@ def split_dataset(csvdata, percentage_to_hold_out):
   used_data = [csvdata[i] for i,v in enumerate(idxs_mask) if v == True]
   held_data = [csvdata[i] for i,v in enumerate(idxs_mask) if v == False]
   return used_data, held_data
+
+def user_by_movie_matrix(ratings_csv, uidmap):
+  n_movies = len(movies)
+  n_users  = len(uidmap.keys())
+  # Make movie-by-user matrix to hold ratings
+  ratings = np.zeros((n_movies, n_users), np.short)
+  datings = np.zeros((n_movies, n_users))
+  for movie_id, user_id, rating, date in ratings_csv:
+    user_idx = get_usr_idx(uidmap, user_id)
+    movie_idx = get_mov_idx(movie_id)
+    ratings[movie_idx, user_idx] = rating
+    datings[movie_idx, user_idx] = date.timestamp()
+  print('built ratings matrix')
+  return ratings, datings
 
 def sparsify(graph, k):
 	assert 0 == len(np.diag(graph).nonzero()[0])

@@ -7,20 +7,6 @@ import argparse
 from my_load import *
 from my_util import *
 
-def user_by_movie_matrix(ratings_csv, uidmap):
-  n_movies = len(movies)
-  n_users  = len(uidmap.keys())
-  # Make movie-by-user matrix to hold ratings
-  ratings = np.zeros((n_movies, n_users), np.short)
-  datings = np.zeros((n_movies, n_users))
-  for movie_id, user_id, rating, date in ratings_csv:
-    user_idx = uidmap[user_id]
-    movie_idx = movie_id - 1
-    ratings[movie_idx, user_idx] = rating
-    datings[movie_idx, user_idx] = date.timestamp()
-  print('built ratings matrix')
-  return ratings, datings
-
 def adjacency_matrices(movies, uidmap, ratings_csv):
   ratings, datings = user_by_movie_matrix(ratings_csv, uidmap)
   nonzeros = np.nonzero(ratings)
