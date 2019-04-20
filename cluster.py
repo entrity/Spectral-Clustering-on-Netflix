@@ -69,27 +69,31 @@ def test_pt(true_lbl, mean_rating, ratings, mov_id, usr_id, uidmap, mov_km, usr_
 	usr_mean = selection_mean( neighbour_usr_idxs, mov_idx )
 	mov_mean = selection_mean( usr_idx, neighbour_mov_idxs )
 	# Check accuracy on user_mean, movie_mean, and the average of the two
-	usr_hyp  = math.round(usr_mean)
-	mov_hyp  = math.round(mov_mean)
-	mean_hyp = math.round((mov_mean + usr_mean) / 2.)
+	usr_hyp  = np.round(usr_mean)
+	mov_hyp  = np.round(mov_mean)
+	mean_hyp = np.round((mov_mean + usr_mean) / 2.)
+	meanmean_hyp = np.round((mov_mean + usr_mean + mean_rating) / 2.)
 	# Return
 	if true_lbl is None: # Return inference values
-		return usr_hyp, mov_hyp, mean_hyp
+		return usr_hyp, mov_hyp, mean_hyp, meanmean_hyp
 	else:                # Return accuracy
-		return int(usr_hyp == true_lbl), int(mov_hyp == true_lbl), int(mean_hyp == true_lbl)
+		return int(usr_hyp == true_lbl), int(mov_hyp == true_lbl), int(mean_hyp == true_lbl), int(meanmean_hyp == true_lbl)
 
 def validate(title, dataset, mov_km, usr_km):
 	uidmap = construct_user_id_map()
 	all_ratings = [row[2] for row in dataset]
 	mean_rating = np.mean(all_ratings)
-	ratings_matrix = user_by_movie_matrix(dataset, uidmap)
-	acc = np.zeros((len(dataset), 3), np.short)
+	ratings_matrix, _ = user_by_movie_matrix(dataset, uidmap)
+	acc = np.zeros((len(dataset), 4), np.short)
 	for i, row in enumerate(dataset):
 		mov_id, usr_id, true_lbl, date = row
-		usr, mov, mean = test_pt(true_lbl, mean_rating, ratings_matrix, mov_id, usr_id, uidmap, mov_km, usr_km)
-		acc[i,:] = usr, mov, mean
-	acc_usr, acc_mov, acc_mean = acc.sum(axis=0)
-	print('%s : usr %7d : mov %7d : mean %7d' % (title, acc_usr, acc_mov, acc_mean))
+		usr, mov, mean, meanmean = test_pt(true_lbl, mean_rating, ratings_matrix, mov_id, usr_id, uidmap, mov_km, usr_km)
+		acc[i,:] = usr, mov, mean, meanmean
+	acc_usr, acc_mov, acc_mean, acc_meanmean = acc.sum(axis=0)
+	print(title)
+	print('\t : usr %7d : mov %7d : mean %7d : meanmean %7d' % (acc_usr, acc_mov, acc_mean, acc_meanmean))
+	n = float(len(dataset))
+	print('\t : usr %.5f : mov %.5f : mean %.5f : meanmean %.5f' % (acc_usr/n, acc_mov/n, acc_mean/n, acc_meanmean/n))
 
 if __name__ == '__main__':
 	# Parse args
@@ -107,12 +111,16 @@ if __name__ == '__main__':
 	# Cluster
 	if os.path.exists(_labels_fpath(args.k_usrs, args.usr_dim, args.usr_eigenvectors_file)):
 		usr_km = KMeansData(np.load(_labels_fpath(args.k_usrs, args.usr_dim, args.usr_eigenvectors_file)))
+		print('loaded user kmeans')
 	else:
 		usr_km = cluster(args.usr_eigenvectors_file, args.usr_eigenvalues_file, args.usr_dim, args.k_usrs)
+		print('built user kmeans')
 	if os.path.exists(_labels_fpath(args.k_movs, args.mov_dim, args.mov_eigenvectors_file)):
 		mov_km = KMeansData(np.load(_labels_fpath(args.k_movs, args.mov_dim, args.mov_eigenvectors_file)))
+		print('loaded movie kmeans')
 	else:
 		mov_km = cluster(args.mov_eigenvectors_file, args.mov_eigenvalues_file, args.mov_dim, args.k_movs)
+		print('loaded movie kmeans')
 
 	# Load trainset for inference
 	tic = datetime.datetime.now()
@@ -121,4 +129,9 @@ if __name__ == '__main__':
 	toc = datetime.datetime.now(); print('tictoc load trainset', toc-tic)
 
 	# Test on training data
-	validate('TEST k-usr %6d k-mov %6d d-usr %4d d-mov %4d', trainset, mov_km, usr_km)
+	tic = datetime.datetime.now()
+	validate('TEST k-usr %6d k-mov %6d d-usr %4d d-mov %4d' % (
+		args.k_usrs, args.k_movs,
+		args.usr_dim, args.mov_dim
+		), trainset, mov_km, usr_km)
+	toc = datetime.datetime.now(); print('tictoc validate', toc-tic)

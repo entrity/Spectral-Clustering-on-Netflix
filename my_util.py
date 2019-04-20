@@ -2,6 +2,7 @@ import sys, os
 import datetime
 import numpy as np
 import sklearn.neighbors
+import my_load
 
 def parsedate(datestr): return datetime.datetime.strptime(datestr, '%Y-%m-%d')
 def calc_date_distance( a, b ): return abs((a - b).days)
@@ -21,16 +22,17 @@ def split_dataset(csvdata, percentage_to_hold_out):
   return used_data, held_data
 
 def user_by_movie_matrix(ratings_csv, uidmap):
+  movies   = my_load.load_movies('movie_titles.txt')
   n_movies = len(movies)
   n_users  = len(uidmap.keys())
   # Make movie-by-user matrix to hold ratings
-  ratings = np.zeros((n_movies, n_users), np.short)
-  datings = np.zeros((n_movies, n_users))
+  ratings = np.zeros((n_users, n_movies), np.short)
+  datings = np.zeros((n_users, n_movies))
   for movie_id, user_id, rating, date in ratings_csv:
     user_idx = get_usr_idx(uidmap, user_id)
     movie_idx = get_mov_idx(movie_id)
-    ratings[movie_idx, user_idx] = rating
-    datings[movie_idx, user_idx] = date.timestamp()
+    ratings[user_idx, movie_idx] = rating
+    datings[user_idx, movie_idx] = date.timestamp()
   print('built ratings matrix')
   return ratings, datings
 
