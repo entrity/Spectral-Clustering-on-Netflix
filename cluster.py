@@ -9,8 +9,9 @@ from my_util import *
 from my_load import *
 
 class KMeansData(object):
-	def __init__(self, labels_):
+	def __init__(self, labels_, is_test=False):
 		self.labels_ = labels_
+		self.is_test = is_test
 		self.memberships = {} # maps label idx to list of datapt indices
 		for idx, lbl in enumerate(labels_):
 			if lbl not in self.memberships:
@@ -22,7 +23,10 @@ class KMeansData(object):
 		if pt_idx is None: return []
 		cluster_id = self.labels_[pt_idx]
 		members = self.memberships[cluster_id]
-		return [ m for m in members if m != pt_idx ]
+		if self.is_test:
+			return members
+		else:
+			return [ m for m in members if m != pt_idx ]
 
 ######################################################################
 
@@ -100,7 +104,7 @@ def validate(title, dataset, mov_km, usr_km):
 	n_correct = accs.sum(axis=0)
 	accuracy  = n_correct / n
 	mses      = errs.mean(axis=0)
-	favs      = (accuracy * (1 - mses))
+	favs      = (accuracy / mses)
 	print(title)
 	print('  COR : usr %7d : mov %7d : mean %7d : meanmean %7d' % tuple(n_correct))
 	print('  ACC : usr %.5f : mov %.5f : mean %.5f : meanmean %.5f' % tuple(accuracy))
@@ -121,14 +125,15 @@ if __name__ == '__main__':
 	args = parser.parse_args()
 
 	# Cluster
+	is_test = True
 	if os.path.exists(_labels_fpath(args.k_usrs, args.usr_dim, args.usr_eigenvectors_file)):
-		usr_km = KMeansData(np.load(_labels_fpath(args.k_usrs, args.usr_dim, args.usr_eigenvectors_file)))
+		usr_km = KMeansData(np.load(_labels_fpath(args.k_usrs, args.usr_dim, args.usr_eigenvectors_file)), is_test)
 		print('loaded user kmeans')
 	else:
 		usr_km = cluster(args.usr_eigenvectors_file, args.usr_eigenvalues_file, args.usr_dim, args.k_usrs)
 		print('built user kmeans')
 	if os.path.exists(_labels_fpath(args.k_movs, args.mov_dim, args.mov_eigenvectors_file)):
-		mov_km = KMeansData(np.load(_labels_fpath(args.k_movs, args.mov_dim, args.mov_eigenvectors_file)))
+		mov_km = KMeansData(np.load(_labels_fpath(args.k_movs, args.mov_dim, args.mov_eigenvectors_file)), is_test)
 		print('loaded movie kmeans')
 	else:
 		mov_km = cluster(args.mov_eigenvectors_file, args.mov_eigenvalues_file, args.mov_dim, args.k_movs)
