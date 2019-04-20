@@ -68,7 +68,7 @@ def test_pt(true_lbl, mean_rating, ratings, mov_id, usr_id, uidmap, mov_km, usr_
 		else:
 			selection = ratings[usr, mov] # Either (1) all ratings by one user for a cluster of movies or (2) all ratings for one movie from a cluster of users
 		nonzero_values = nzs(selection)
-		return selection.mean() if len(selection) else mean_rating
+		return nonzero_values.mean() if len(selection) else mean_rating
 	# Get indices of neighbours
 	neighbour_usr_idxs = usr_km.get_neighbour_idxs(usr_idx)
 	neighbour_mov_idxs = mov_km.get_neighbour_idxs(mov_idx)
@@ -125,7 +125,7 @@ if __name__ == '__main__':
 	args = parser.parse_args()
 
 	# Cluster
-	is_test = True
+	is_test = False
 	if os.path.exists(_labels_fpath(args.k_usrs, args.usr_dim, args.usr_eigenvectors_file)):
 		usr_km = KMeansData(np.load(_labels_fpath(args.k_usrs, args.usr_dim, args.usr_eigenvectors_file)), is_test)
 		print('loaded user kmeans')
