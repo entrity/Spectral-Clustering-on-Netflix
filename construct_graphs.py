@@ -23,7 +23,7 @@ def adjacency_matrices(movies, uidmap, ratings_csv):
   user_by_user   = np.zeros((n_users, n_users), np.float)
 
   print('building movie graph...')
-  for user in ratings.transpose():
+  for user in ratings:
     nzidxs = user.nonzero()[0] # nonzero indices for user
     nzrats = user[nzidxs] # nonzero ratings for user
     for i, rating in enumerate(nzidxs):

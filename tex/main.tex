@@ -1,0 +1,106 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{tikz}
+\usetikzlibrary{shapes,arrows}
+\usetikzlibrary{shapes.geometric}
+\usetikzlibrary{positioning}
+
+\usepackage{geometry}
+\geometry{margin=1in}
+
+\graphicspath{./img}
+
+\title{ECS 271 - Netflix - Spectral Clustering}
+\author{Markham Anderson}
+% \date{April 2019}
+
+\begin{document}
+
+\tikzstyle{block} = [draw, fill=blue!20, rectangle, minimum height=3em, minimum width=6em]
+\tikzstyle{mean} = [draw, fill=blue!20, circle, node distance=1.5cm]
+\tikzstyle{input} = [coordinate]
+\tikzstyle{output} = [coordinate]
+\tikzstyle{pinstyle} = [pin edge={to-,thin,black}]
+
+\maketitle
+
+\section{Overview} \label{section:Overview}
+
+    I opted to make use of spectral clustering because it was the less familiar two me of the two methods presented. That said, the design of my system was quite spartan, and the motivation behind this strategy lay in my inexperience with spectral clustering. I address some design alternatives in the Approach section below, as well as implementation details for all points of this overview. Preparatory to clustering, I constructed a user graph and a movie graph, whose edges were a function of the user-movie ratings provided in the training data. From these graphs, spectral clustering yielded a set of movie clusters and a set of user clusters. I suppose that a cluster of users represents like-minded individuals who tend to have similar tastest in movies; a cluster of movies represents items of similar attributes (e.g. genre, production value, levity). Founded on the supposition that a given cluster of users will tend to award similar ratings for a given movie and that a cluster of movies will tend to receive similar ratings from a single user, my model infers a rating value for a given user-movie pair as the mean of (1) the mean rating from the pertinent user cluster and (2) the mean rating from the pertinent movie cluster. Details are provided in section \ref{section:Approach}: Approach.
+
+\section{Diagrams} \label{section:Diagrams}
+
+    Fig \ref{fig:clustering} outlines the steps that lead from the input ($usr \times mov$) to the user-movie rating prediction. Fig \ref{fig:movie-mean} provides greater detail on the steps that lead from the clusters to the movie-related mean $\mu_m$. (Calculation of the user-rated mean $\mu_u$ is done identically to $\mu_m$ except that the roles of users and movies are swapped.)
+
+\begin{figure}
+\centering
+\begin{tikzpicture}[square/.style={regular polygon,regular polygon sides=4}, node distance=2.5cm]
+        \node [block,draw,align=center] (usrbymov) {$M$ \\ ($mov \times usr$)};
+        
+        \node [block, below left = 4em and 6em of usrbymov] (usrbyusr) {$usr \times usr$};
+        \draw [->] (usrbymov) -- node {adjacency matrix} (usrbyusr);
+        \node [block, below of=usrbyusr] (usrsparse) {sparse $usr \times usr$};
+        \draw [->] (usrbyusr) -- node {k-nearest-neighbours} (usrsparse);
+        \node [block, align=center, below of=usrsparse] (usrsymm) {symmetric sparse \\ $usr \times usr$};
+        \draw [->] (usrsparse) -- node {$(X+X^T)/2$} (usrsymm);
+        \node [block, align=center, below of=usrsymm] (usrLap) {Normalized \\ Laplacian \\ $usr \times usr$};
+        \draw [->] (usrsymm) -- node {$(X+X^T)/2$} (usrLap);
+        \node [block, align=center, below of=usrsymm] (usrLap) {Normalized \\ Laplacian \\ $usr \times usr$};
+        \draw [->] (usrsymm) -- node {$(X+X^T)/2$} (usrLap);
+        \node [block, align=center, below of=usrLap] (usrEmbedding) {Embedding \\ $usr \times d_u$};
+        \draw [->] (usrLap) -- node {eigendecomposition} (usrEmbedding);
+        \node [block, align=center, below of=usrEmbedding] (usrClusters) {$k_u$ usr clusters};
+        \draw [->] (usrEmbedding) -- node {k-means clustering} (usrClusters);
+        
+        
+        \node [block, below right = 4em and 6em of usrbymov] (movbymov) {$mov \times mov$};
+        \draw [->] (usrbymov) -- node {adjacency matrix} (movbymov);
+        \node [block, below of=movbymov] (movsparse) {sparse $mov \times mov$};
+        \draw [->] (movbymov) -- node {k-nearest-neighbours} (movsparse);
+        \node [block, align=center, below of=movsparse] (movsymm) {symmetric sparse \\ $mov \times mov$};
+        \draw [->] (movsparse) -- node {$(X+X^T)/2$} (movsymm);
+        \node [block, align=center, below of=movsymm] (movLap) {Normalized \\ Laplacian \\ $mov \times mov$};
+        \draw [->] (movsymm) -- node {$(X+X^T)/2$} (movLap);
+        \node [block, align=center, below of=movsymm] (movLap) {Normalized \\ Laplacian \\ $mov \times mov$};
+        \draw [->] (movsymm) -- node {$(X+X^T)/2$} (movLap);
+        \node [block, align=center, below of=movLap] (movEmbedding) {Embedding \\ $mov \times d_m$};
+        \draw [->] (movLap) -- node {eigendecomposition} (movEmbedding);
+        \node [block, align=center, below of=movEmbedding] (movClusters) {$k_m$ mov clusters};
+        \draw [->] (movEmbedding) -- node {k-means clustering} (movClusters);
+        \node [mean, align=center, below of=movClusters] (movMean) {$\mu_m$};
+        \draw [->] (movClusters) -- node {} (movMean);
+        \draw [->] (usrClusters) -- node {} (movMean);
+        \node [mean, align=center, below of=usrClusters] (usrMean) {$\mu_m$};
+        \draw [->] (movClusters) -- node {} (usrMean);
+        \draw [->] (usrClusters) -- node {} (usrMean);
+        
+        \node [mean, align=center, below right = 1em and 10em of usrMean] (rating) {rating};
+        \draw [->] (movMean) -- node {} (rating);
+        \draw [->] (usrMean) -- node {} (rating);
+        
+    \end{tikzpicture}
+    \caption{Soup to nuts}
+    \label{fig:clustering}
+\end{figure}
+
+\begin{figure}
+    \centering
+    \includegraphics[scale=0.55]{img/cluster-to-mean.png}
+    \caption{Movie mean for a given user}
+    \label{fig:movie-mean}
+\end{figure}
+
+\section{Approach} \label{section:Approach}
+
+    In \ref{fig:clustering}, you see that the input, taken from \texttt{train.csv} was organized into a matrix of $|movie|\times |user|$, which I denote $M$. This matrix is incomplete because not all possible user-movie ratings are given in \texttt{train.tsv}, so for the unknown matrix values, I used 0 as a placeholder. (0 is not a legal value for known cells.)
+    
+    The two graphs on which spectral clustering was performed were created identically, one for users, one for movies. I'll describe the process for the movie graph here. I created a fully-connected graph of movies. Then for all movie pairs $(m,n)$, I set the edge weight $w_{m,n}$ as follows.
+    
+    Incremented edge weight by 
+    for all users u, for all movies n != m, f(u,m,n)
+    
+    $$w_{m,n} = \sum_{u \in Users} 1.5 - |M[m,u] - M[n,u]|$$
+    
+    Then for each cell $M_{m,u}$ in $M$, I set the weight of all incident edges $w(m,v) = \sum_{v \in Users} g($ of movies in row (i.e. user) in the $usr \times mov$ matrix, I incremented the edge weight 
+
+\end{document}
