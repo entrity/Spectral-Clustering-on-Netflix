@@ -1,5 +1,7 @@
 \documentclass{article}
 \usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{bbm}
 \usepackage{tikz}
 \usetikzlibrary{shapes,arrows}
 \usetikzlibrary{shapes.geometric}
@@ -42,11 +44,9 @@
         \node [block, below of=usrbyusr] (usrsparse) {sparse $usr \times usr$};
         \draw [->] (usrbyusr) -- node {k-nearest-neighbours} (usrsparse);
         \node [block, align=center, below of=usrsparse] (usrsymm) {symmetric sparse \\ $usr \times usr$};
-        \draw [->] (usrsparse) -- node {$(X+X^T)/2$} (usrsymm);
+        \draw [->] (usrsparse) -- node {$(A+A^T)/2$} (usrsymm);
         \node [block, align=center, below of=usrsymm] (usrLap) {Normalized \\ Laplacian \\ $usr \times usr$};
-        \draw [->] (usrsymm) -- node {$(X+X^T)/2$} (usrLap);
-        \node [block, align=center, below of=usrsymm] (usrLap) {Normalized \\ Laplacian \\ $usr \times usr$};
-        \draw [->] (usrsymm) -- node {$(X+X^T)/2$} (usrLap);
+        \draw [->] (usrsymm) -- node {} (usrLap);
         \node [block, align=center, below of=usrLap] (usrEmbedding) {Embedding \\ $usr \times d_u$};
         \draw [->] (usrLap) -- node {eigendecomposition} (usrEmbedding);
         \node [block, align=center, below of=usrEmbedding] (usrClusters) {$k_u$ usr clusters};
@@ -58,11 +58,9 @@
         \node [block, below of=movbymov] (movsparse) {sparse $mov \times mov$};
         \draw [->] (movbymov) -- node {k-nearest-neighbours} (movsparse);
         \node [block, align=center, below of=movsparse] (movsymm) {symmetric sparse \\ $mov \times mov$};
-        \draw [->] (movsparse) -- node {$(X+X^T)/2$} (movsymm);
+        \draw [->] (movsparse) -- node {$(A+A^T)/2$} (movsymm);
         \node [block, align=center, below of=movsymm] (movLap) {Normalized \\ Laplacian \\ $mov \times mov$};
-        \draw [->] (movsymm) -- node {$(X+X^T)/2$} (movLap);
-        \node [block, align=center, below of=movsymm] (movLap) {Normalized \\ Laplacian \\ $mov \times mov$};
-        \draw [->] (movsymm) -- node {$(X+X^T)/2$} (movLap);
+        \draw [->] (movsymm) -- node {} (movLap);
         \node [block, align=center, below of=movLap] (movEmbedding) {Embedding \\ $mov \times d_m$};
         \draw [->] (movLap) -- node {eigendecomposition} (movEmbedding);
         \node [block, align=center, below of=movEmbedding] (movClusters) {$k_m$ mov clusters};
@@ -86,7 +84,7 @@
 \begin{figure}
     \centering
     \includegraphics[scale=0.55]{img/cluster-to-mean.png}
-    \caption{Movie mean for a given user}
+    \caption{Movie mean for a given cluster of users. \\ \tiny IC for t-sne https://www.oreilly.com/learning/an-illustrated-introduction-to-the-t-sne-algorithm }
     \label{fig:movie-mean}
 \end{figure}
 
@@ -96,11 +94,37 @@
     
     The two graphs on which spectral clustering was performed were created identically, one for users, one for movies. I'll describe the process for the movie graph here. I created a fully-connected graph of movies. Then for all movie pairs $(m,n)$, I set the edge weight $w_{m,n}$ as follows.
     
-    Incremented edge weight by 
-    for all users u, for all movies n != m, f(u,m,n)
+    $$w_{m,n} = \sum_{u \in Users} (1.5 - |M[m,u] - M[n,u]|) \times \mathbbm{1}_{m,u} \times \mathbbm{1}_{n,u} $$
     
-    $$w_{m,n} = \sum_{u \in Users} 1.5 - |M[m,u] - M[n,u]|$$
+    $\mathbbm{1}_{a,b}$ is an indicator function which equates to 1 if $M[a,b] > 0$ and equates to 0 otherwise. Thus each user contributes to the edge weight between every pair of movies for which they have provided ratings (for both movies). If a user has rated two movies similarly, this contribution is positive; if a user has rated two movies dissimilarly, this contribution is negative. My choice of $1.5$ as the boundary for similar versus dissimilar ratings was arbitrary, based on my supposition that if two movies have ratings that are different by a value of more than 1, I think they should not be connected in the graph.
+
+    I considered influencing edge weights with the difference between films' release dates, their genres, and the Levenstein distance between their titles. However, demands on my time convinced me to move ahead with the barebones design described thus far. Alternative to using these data, I might have constructed a constraining matrix which could be used later after the pattern of the one denoted $Q$ in the class lecture.
     
-    Then for each cell $M_{m,u}$ in $M$, I set the weight of all incident edges $w(m,v) = \sum_{v \in Users} g($ of movies in row (i.e. user) in the $usr \times mov$ matrix, I incremented the edge weight 
+    After having thus constructed a fully-connected graph, I used $k$-nearest-neighbours to determine which edges to keep. Making the graph thus sparse would allow a complexity of $O(n^2)$ for the eigendecomposition to follow, however, the $k$-nearest-neighbours algorithm left my new adjacency matrix asymmetric, so I replaced it with the similar matrix $A := (A+A^T) / 2$. I then constructed a Normalized Laplacian and its computed its first $d$ eigenvectors.
+    
+    % NB: I just realized that I ran k-nearest-neighbours backward! I kept the worst edges and discarded the most high-value ones. Grrr! My results are meaningless.
+    
+    I experimented with several values for $k_{nn}$ and $d$. For $k_{nn}$, examined the distance between the eigenvalues to evaluate them. I observed that the graphs of the distances adopted a sharper curve as $k_{nn}$ increased, so I proceeded with a high value of 128 for $k_{nn}$. For $d$, I began with the value where I saw the jump in the eigenvalues' distances take place, but through experimentation on the training set, I eventually settled the much lower value of $16$.
+    
+    The selected $16$ eigenvectors provided a spectral embedding on which I applied $k$-means clustering. As before, experimentation on the training set dictated my choice for $k_{clusters}$, which in the end was $32$.
+    
+    Of course, $k_{nn}$, $d$, and $k_{clusters}$ could have had different values for users and for movies, and it might have been well to have done so because of the vast difference in the sizes of the two sets, but I kept them the same for most of my experiments in order to reduce the size of the hyperparameter search space.
+    
+    Having completed the spectral clustering, I inferred a rating for each user-movie pair as the mean of two values $rating = (\mu_u + \mu_m) / 2$.
+    $\mu_u$ and $\mu_m$ are computed identically, except that one is primarily predicated on the user clusters, and the other is primarily predicated on the movie clusters. \ref{fig:movie-mean} shows how $\mu_m$ is computed for a given user-movie pair:
+    
+    Let $C^{(usr)}_u$ be the user cluster in which user $u$ resides, and let $C^{(mov)}_m$ be the movie cluster in which movie $m$ resides. $\mu_m$ is computed as the mean of all (non-zero) ratings from all users $v \in C^{(usr)}_u$ for movie $m$. Formally:
+    
+    \begin{align*}
+\mu^{(u,m)}_m &= \frac{1}{ n_{nz} } \sum_{ v \in  C^{(usr)}_u} M[m,v]\\
+n_{nz} &= \sum_{ v \in  C^{(usr)}_u} \mathbbm{1}_{m,v} \\
+rating_{u,m} &= \mu^{(u,m)}_m + \mu^{(u,m)}_u) / 2
+    \end{align*}
+
+    When evaluating this method against the training data, it was necessary to omit the term $M[m,v]$ when $u = v$, as it would give to much weight to the true label for each example.
+    
+    I experimented further with using only $\mu_u$ or $\mu_m$ instead of the mean of the two in order to produce a rating, but the mean performed better. I also experimented with including the training set's mean rating in my mean term, i.e. $(\mu_u + \mu_m \mu_r)/3$, but this still produced inferior results.
+    
+    When computing $\mu^{(u,m)}_m$, in cases where a cluster produced no neighbours with ratings, i.e. no non-zero entry $M[v,m] \text{ s.t. } v \ne u \bigwedge v \in C^{(usr)}_u$, I opened up the calculation to use \textit{all} $v \in Users$. Thus, I used a the mean rating for the film, not just the mean rating from the selected user cluster. When computing $\mu^{(u,m)}_u$ and finding cases where a cluster produced no neighbours with ratings, I took the corresponding measure, with the roles of users and movies swapped. In the event that there were no ratings at all for a given movie or user, the mean rating over the entire dataset (over all users and all movies) was used.
 
 \end{document}
